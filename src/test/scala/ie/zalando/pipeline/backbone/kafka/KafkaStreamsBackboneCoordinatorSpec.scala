@@ -1,4 +1,4 @@
-package ie.zalando.pipeline.backbone
+package ie.zalando.pipeline.backbone.kafka
 
 import java.util
 import java.util.Properties
@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory
 import ie.zalando.pipeline.backbone.CountWordsPhase.CountWordsTopLevelInitPhase
 import ie.zalando.pipeline.backbone.IsEvenPhase.IsEvenTopLevelInitPhase
 import ie.zalando.pipeline.backbone.SayHelloPhase.SayHelloTopLevelInitPhase
+import ie.zalando.pipeline.backbone.{ Backbone, TestDatum }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 
 class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with BeforeAndAfterEachTestData {

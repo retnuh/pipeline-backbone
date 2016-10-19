@@ -1,4 +1,4 @@
-package ie.zalando.pipeline.backbone
+package ie.zalando.pipeline.backbone.kafka
 
 import java.util.concurrent.CountDownLatch
 
@@ -7,6 +7,7 @@ import org.apache.kafka.streams.processor.ProcessorContext
 import org.slf4j.LoggerFactory
 
 import cats.data.Xor
+import ie.zalando.pipeline.backbone.Backbone
 import ie.zalando.pipeline.backbone.Phases._
 
 /**
