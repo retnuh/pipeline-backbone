@@ -17,11 +17,11 @@ class ExecutorServiceBackboneCoordinator[DA](backbone: Backbone[DA], executor: E
 
   private class BackboneCallable(datum: DA) extends Callable[Xor[TransformationPipelineFailure, DA]] {
     override def call(): Xor[TransformationPipelineFailure, DA] = {
-      val (ts, releasers) = backbone.initializeInLocalContext(-1, localInitPhases).unzip
+      val (dataPhases, releasePhases) = backbone.initializeInLocalContext(-1, localInitPhases).unzip
       try {
-        backbone.transformDatum(backbone.createStateMonad(ts), datum)
+        backbone.transformDatum(backbone.createStateMonad(dataPhases), datum)
       } finally {
-        releasers.foreach((phase: LocalReleasePhase) => {
+        releasePhases.foreach((phase: LocalReleasePhase) => {
           Try({ phase.releaseLocalResources() }).recover { case ex => log.warn(s"Release phase $phase failed:", ex) }
         })
       }
