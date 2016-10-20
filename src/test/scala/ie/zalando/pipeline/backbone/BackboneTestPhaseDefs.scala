@@ -1,11 +1,13 @@
 package ie.zalando.pipeline.backbone
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 
 import cats.data.Xor
-import Phases._
+import ie.zalando.pipeline.backbone.Phases._
 
-case class TestDatum(name: String, phrase: String = "", wordCount: Int = -1, isEven: Option[Boolean] = None)
+case class TestDatum(name: String, phrase: String = "", wordCount: Int = -1, isEven: Option[Boolean] = None,
+  localReleased: Option[AtomicBoolean] = None)
 
 // Phases for a simple "enrichment" transform
 
@@ -19,6 +21,7 @@ object SayHelloPhase {
 
   case class SayHelloReleasePhase(partition: Int) extends LocalReleasePhase {
     var released: Option[Int] = None
+
     override def releaseLocalResources(): Unit = {
       released = Some(partition)
     }
@@ -27,6 +30,7 @@ object SayHelloPhase {
   case class SayHelloLocalInitPhase(greeting: String) extends LocalInitializationPhase[TestDatum] {
     type DP = SayHelloDatumPhase
     type LRP = SayHelloReleasePhase
+
     override def initializeInLocalContext(partition: Int): (SayHelloDatumPhase, SayHelloReleasePhase) = {
       (SayHelloDatumPhase(greeting, partition), SayHelloReleasePhase(partition))
     }
@@ -40,6 +44,7 @@ object SayHelloPhase {
       SayHelloLocalInitPhase("Hello")
     }
   }
+
 }
 
 object CountWordsPhase {
@@ -53,12 +58,14 @@ object CountWordsPhase {
   case class CountWordsLocalInitPhase(WordsPattern: Pattern) extends LocalInitializationPhase[TestDatum] {
     type LRP = NoOpReleasePhase.type
     type DP = CountWordsDatumPhase
+
     override def initializeInLocalContext(partition: Int): (CountWordsDatumPhase, NoOpReleasePhase.type) = {
       (CountWordsDatumPhase(WordsPattern), NoOpReleasePhase)
     }
   }
 
   val WordsPattern = Pattern.compile("[a-zA-Z]+")
+
   case class CountWordsTopLevelInitPhase() extends TopLevelInitializationPhase[TestDatum] {
     type LIP = CountWordsLocalInitPhase
 
@@ -72,7 +79,7 @@ object CountWordsPhase {
 object IsEvenPhase {
 
   case class IsEvenDatumPhase() extends DatumPhase[TestDatum] {
-    def isEven(x: Int) = (x & 0x01) == 0
+    def isEven(x: Int) = ((x & 0x01) == 0)
 
     override def transformDatum(datum: TestDatum): Xor[TransformationPipelineFailure, TestDatum] = {
       Xor.right(datum.copy(isEven = Some(isEven(datum.name.length) && isEven(datum.phrase.length) && isEven(datum.wordCount))))
@@ -82,6 +89,7 @@ object IsEvenPhase {
   case class IsEvenLocalInitPhase() extends LocalInitializationPhase[TestDatum] {
     type DP = IsEvenDatumPhase
     type LRP = NoOpReleasePhase.type
+
     override def initializeInLocalContext(partition: Int): (IsEvenDatumPhase, NoOpReleasePhase.type) = {
       (IsEvenDatumPhase(), NoOpReleasePhase)
     }
@@ -94,5 +102,39 @@ object IsEvenPhase {
       IsEvenLocalInitPhase()
     }
   }
+
 }
 
+object PhaseTrackingPhase {
+
+  case class PhaseTrackingDatumPhase(released: AtomicBoolean) extends DatumPhase[TestDatum] {
+
+    override def transformDatum(datum: TestDatum): Xor[TransformationPipelineFailure, TestDatum] = {
+      Xor.right(datum.copy(localReleased = Option(released)))
+    }
+  }
+
+  case class PhaseTrackingReleasePhase(released: AtomicBoolean) extends LocalReleasePhase {
+    override def releaseLocalResources(): Unit = {
+      released.set(true)
+    }
+  }
+
+  case class PhaseTrackingInitializationPhase() extends LocalInitializationPhase[TestDatum] {
+    override type DP = PhaseTrackingDatumPhase
+    override type LRP = PhaseTrackingReleasePhase
+
+    override def initializeInLocalContext(partition: Int): (DP, LRP) = {
+      val released = new AtomicBoolean(false)
+      (PhaseTrackingDatumPhase(released), PhaseTrackingReleasePhase(released))
+    }
+  }
+
+  case class PhaseTrackingTopLevelInitPhase() extends TopLevelInitializationPhase[TestDatum] {
+    override type LIP = PhaseTrackingInitializationPhase
+
+    override def initializeInTopLevelContext: LIP = {
+      PhaseTrackingInitializationPhase()
+    }
+  }
+}

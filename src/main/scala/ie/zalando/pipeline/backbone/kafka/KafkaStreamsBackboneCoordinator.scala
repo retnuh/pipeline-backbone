@@ -48,9 +48,9 @@ private case class KafkaStreamsBackboneValueTransformer[DA](backbone: Backbone[D
 
   override def init(context: ProcessorContext): Unit = {
     log.info(s"Init called with ${context.toString} ${context.taskId}")
-    val (ts, rs) = backbone.initializeInLocalContext(context.taskId.partition, localInitPhases).unzip
-    xformStateMonadOption = Option(backbone.createStateMonad(ts))
-    releasers = Option(rs)
+    val (dataPhases, releasePhases) = backbone.initializeInLocalContext(context.taskId.partition, localInitPhases).unzip
+    xformStateMonadOption = Option(backbone.createStateMonad(dataPhases))
+    releasers = Option(releasePhases)
   }
 
   override def punctuate(timestamp: Long): Xor[TransformationPipelineFailure, DA] = {

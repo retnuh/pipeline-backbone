@@ -106,6 +106,8 @@ Internally, the backbone uses a `StateMonad` as a way of chaining together all t
 
 As was mentioned, initially the plan was to release on Spark, but the decision was made to deploy on Kafka Streams instead.  Currently there is a class called `KafkaStreamsBackboneCoordinator` that represents the essential glue between the Backbone and Kafka Streams.
 
+There is also a an `ExecutorServiceBackboneCoordinator` that allows running a Backbone Pipeline in-process using a passed in `ExecutorService` to handle concurrency.
+
 It would still be possible to write a `SparkStreamingBackboneCoordinator` or something similar, but there are currently no plans.
 
 Given that each framework/library integration will be very specific to the particular framework/library, there is no top level interface/trait/abstract class defined for the coordinators.  A marker interface/trait could be added, but there is currently no need/gain seen for this.
