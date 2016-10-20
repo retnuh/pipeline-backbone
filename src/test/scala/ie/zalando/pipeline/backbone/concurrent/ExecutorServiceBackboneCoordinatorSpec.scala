@@ -21,15 +21,15 @@ class ExecutorServiceBackboneCoordinatorSpec extends FlatSpec with Matchers {
       val f2 = coordinator.process(TestDatum(name = "Soundwave"))
       val f3 = coordinator.process(TestDatum(name = "Shockwave"))
 
-      f1.get.map(_.phrase shouldBe "Hello, Megatron, this was calculated on partition -1")
-      f1.get.map(_.wordCount shouldBe 8)
-      f1.get.map(_.isEven shouldBe Some(true))
-      f2.get.map(_.phrase shouldBe "Hello, Soundwave, this was calculated on partition -1")
-      f2.get.map(_.wordCount shouldBe 8)
-      f2.get.map(_.isEven shouldBe Some(false))
-      f3.get.map(_.phrase shouldBe "Hello, Shockwave, this was calculated on partition -1")
-      f3.get.map(_.wordCount shouldBe 8)
-      f3.get.map(_.isEven shouldBe Some(false))
+      f1.get.foreach(_.phrase shouldBe "Hello, Megatron, this was calculated on partition -1")
+      f1.get.foreach(_.wordCount shouldBe 8)
+      f1.get.foreach(_.isEven shouldBe Some(true))
+      f2.get.foreach(_.phrase shouldBe "Hello, Soundwave, this was calculated on partition -1")
+      f2.get.foreach(_.wordCount shouldBe 8)
+      f2.get.foreach(_.isEven shouldBe Some(false))
+      f3.get.foreach(_.phrase shouldBe "Hello, Shockwave, this was calculated on partition -1")
+      f3.get.foreach(_.wordCount shouldBe 8)
+      f3.get.foreach(_.isEven shouldBe Some(false))
     } finally {
       executor.shutdown()
     }
@@ -46,12 +46,12 @@ class ExecutorServiceBackboneCoordinatorSpec extends FlatSpec with Matchers {
       val f2 = coordinator.process(TestDatum(name = "Soundwave"))
       val f3 = coordinator.process(TestDatum(name = "Shockwave"))
 
-      f1.get.map(_.phrase shouldBe "Hello, Megatron, this was calculated on partition -1")
-      f2.get.map(_.phrase shouldBe "Hello, Soundwave, this was calculated on partition -1")
-      f3.get.map(_.phrase shouldBe "Hello, Shockwave, this was calculated on partition -1")
-      f1.get.map(_.localReleased.get.get shouldBe true)
-      f2.get.map(_.localReleased.get.get shouldBe true)
-      f3.get.map(_.localReleased.get.get shouldBe true)
+      f1.get.foreach(_.phrase shouldBe "Hello, Megatron, this was calculated on partition -1")
+      f2.get.foreach(_.phrase shouldBe "Hello, Soundwave, this was calculated on partition -1")
+      f3.get.foreach(_.phrase shouldBe "Hello, Shockwave, this was calculated on partition -1")
+      f1.get.foreach(_.localReleased.get.get shouldBe true)
+      f2.get.foreach(_.localReleased.get.get shouldBe true)
+      f3.get.foreach(_.localReleased.get.get shouldBe true)
     } finally {
       executor.shutdown()
     }
