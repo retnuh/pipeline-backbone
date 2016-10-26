@@ -3,6 +3,7 @@ package ie.zalando.pipeline.backbone.concurrent
 import java.util.concurrent.{ Callable, Future, ExecutorService }
 
 import scala.util.Try
+import scala.util.control.NonFatal
 
 import org.slf4j.LoggerFactory
 
@@ -22,7 +23,7 @@ class ExecutorServiceBackboneCoordinator[DA](backbone: Backbone[DA], executor: E
         backbone.transformDatum(backbone.createStateMonad(dataPhases), datum)
       } finally {
         releasePhases.foreach((phase: LocalReleasePhase) => {
-          Try({ phase.releaseLocalResources() }).recover { case ex => log.warn(s"Release phase $phase failed:", ex) }
+          Try({ phase.releaseLocalResources() }).recover { case NonFatal(ex) => log.warn(s"Release phase $phase failed:", ex) }
         })
       }
     }
