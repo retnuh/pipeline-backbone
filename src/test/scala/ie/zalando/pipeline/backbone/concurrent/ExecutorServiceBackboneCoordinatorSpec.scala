@@ -4,12 +4,9 @@ import java.util.concurrent.Executors
 
 import org.scalatest.{ FlatSpec, Matchers }
 
-import ie.zalando.pipeline.backbone.CountWordsPhase.CountWordsTopLevelInitPhase
-import ie.zalando.pipeline.backbone.IsEvenPhase.IsEvenTopLevelInitPhase
 import ie.zalando.pipeline.backbone.PhaseTrackingPhase.PhaseTrackingTopLevelInitPhase
 import ie.zalando.pipeline.backbone.Phases.TopLevelInitializationPhase
-import ie.zalando.pipeline.backbone.SayHelloPhase.SayHelloTopLevelInitPhase
-import ie.zalando.pipeline.backbone.{ Backbone, TestDatum }
+import ie.zalando.pipeline.backbone.TestDatum
 
 class ExecutorServiceBackboneCoordinatorSpec extends FlatSpec with Matchers {
 
@@ -21,12 +18,15 @@ class ExecutorServiceBackboneCoordinatorSpec extends FlatSpec with Matchers {
       val f2 = coordinator.process(TestDatum(name = "Soundwave"))
       val f3 = coordinator.process(TestDatum(name = "Shockwave"))
 
+      f1.get.isRight shouldBe true
       f1.get.foreach(_.phrase shouldBe "Hello, Megatron, this was calculated on partition -1")
       f1.get.foreach(_.wordCount shouldBe 8)
       f1.get.foreach(_.isEven shouldBe Some(true))
+      f2.get.isRight shouldBe true
       f2.get.foreach(_.phrase shouldBe "Hello, Soundwave, this was calculated on partition -1")
       f2.get.foreach(_.wordCount shouldBe 8)
       f2.get.foreach(_.isEven shouldBe Some(false))
+      f3.get.isRight shouldBe true
       f3.get.foreach(_.phrase shouldBe "Hello, Shockwave, this was calculated on partition -1")
       f3.get.foreach(_.wordCount shouldBe 8)
       f3.get.foreach(_.isEven shouldBe Some(false))
@@ -46,6 +46,9 @@ class ExecutorServiceBackboneCoordinatorSpec extends FlatSpec with Matchers {
       val f2 = coordinator.process(TestDatum(name = "Soundwave"))
       val f3 = coordinator.process(TestDatum(name = "Shockwave"))
 
+      f1.get.isRight shouldBe true
+      f2.get.isRight shouldBe true
+      f3.get.isRight shouldBe true
       f1.get.foreach(_.phrase shouldBe "Hello, Megatron, this was calculated on partition -1")
       f2.get.foreach(_.phrase shouldBe "Hello, Soundwave, this was calculated on partition -1")
       f3.get.foreach(_.phrase shouldBe "Hello, Shockwave, this was calculated on partition -1")
@@ -56,10 +59,4 @@ class ExecutorServiceBackboneCoordinatorSpec extends FlatSpec with Matchers {
       executor.shutdown()
     }
   }
-
-}
-
-trait Fixture {
-  def driverInitPhases: Seq[TopLevelInitializationPhase[TestDatum]] = List(SayHelloTopLevelInitPhase(), CountWordsTopLevelInitPhase(), IsEvenTopLevelInitPhase())
-  val backbone = Backbone[TestDatum](driverInitPhases)
 }
