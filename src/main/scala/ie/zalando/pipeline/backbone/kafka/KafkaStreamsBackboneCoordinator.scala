@@ -75,7 +75,7 @@ private case class KafkaStreamsBackboneValueTransformer[DA](backbone: Backbone[D
       Try(Await.result(Future(backbone.transformDatum(sm, value)), duration)).recover {
         case _: TimeoutException =>
           log.warn(s"Timeout occured for datum: $value")
-          Xor.Left(TransformationPipelineTimeout(duration))
+          Xor.Left(TransformationPipelineTimeout(value, duration))
       }.get
     }).get
   }

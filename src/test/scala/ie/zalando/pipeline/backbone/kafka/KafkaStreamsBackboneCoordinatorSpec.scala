@@ -3,11 +3,12 @@ package ie.zalando.pipeline.backbone.kafka
 import java.util
 import java.util.Properties
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.serialization.{ Deserializer, Serde, Serdes, Serializer }
-import org.apache.kafka.streams.kstream.KStreamBuilder
+import org.apache.kafka.streams.kstream.{ ForeachAction, KStream, KStreamBuilder }
 import org.apache.kafka.streams.processor.WallclockTimestampExtractor
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
 import org.scalatest.{ BeforeAndAfterEachTestData, FlatSpec, Matchers, TestData }
@@ -17,7 +18,7 @@ import cats.data.Xor
 import ie.zalando.pipeline.backbone.CountWordsPhase.CountWordsTopLevelInitPhase
 import ie.zalando.pipeline.backbone.GenericPhases._
 import ie.zalando.pipeline.backbone.IsEvenPhase.IsEvenTopLevelInitPhase
-import ie.zalando.pipeline.backbone.Phases.TransformationPipelineFailure
+import ie.zalando.pipeline.backbone.Phases.{ TransformationPipelineFailure, TransformationPipelineTimeout }
 import ie.zalando.pipeline.backbone.SayHelloPhase.SayHelloTopLevelInitPhase
 import ie.zalando.pipeline.backbone.{ Backbone, TestDatum }
 import net.manub.embeddedkafka.ConsumerExtensions._
@@ -52,7 +53,7 @@ class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with Be
   val backbone = Backbone[TestDatum](driverInitPhases)
 
   "A simple streams backbone" should "be possible" in {
-    val (builder, streams) = makeStreams(KafkaStreamsBackboneCoordinator(backbone), 1)
+    val (builder, _) = configureStreams(KafkaStreamsBackboneCoordinator(backbone))
     runStreamsWithStringConsumer(Seq(INPUT_TOPIC, OUTPUT_TOPIC), builder) { consumer =>
       log.info("Sending messages")
       publishToKafka(INPUT_TOPIC, "Megatron")
@@ -72,7 +73,17 @@ class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with Be
         Thread.sleep(10000)
       datum
     }), SayHelloTopLevelInitPhase()))
-    val (builder, streams) = makeStreams(KafkaStreamsBackboneCoordinator(sleepyBackbone, 250 millis), 1)
+    val (builder, xformStream) = configureStreams(KafkaStreamsBackboneCoordinator(sleepyBackbone, 250 millis))
+    val failed = mutable.Set.empty[String]
+    xformStream.foreach(new ForeachAction[String, Xor[TransformationPipelineFailure, TestDatum]] {
+      override def apply(key: String, value: Xor[TransformationPipelineFailure, TestDatum]): Unit = {
+        log.debug(s"checking value $value")
+        value match {
+          case Xor.Left(TransformationPipelineTimeout(td: TestDatum, _)) => failed.add(td.name)
+          case _ =>
+        }
+      }
+    })
     runStreamsWithStringConsumer(Seq(INPUT_TOPIC, OUTPUT_TOPIC), builder) { consumer =>
       log.info("Sending messages")
       publishToKafka(INPUT_TOPIC, "Megatron")
@@ -81,6 +92,7 @@ class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with Be
       val msgs = consumer.consumeLazily(OUTPUT_TOPIC).take(1).map(_._2).toSet
       msgs should contain("Hello, Soundwave, this was calculated on partition 0")
     }
+    failed shouldBe mutable.Set("Megatron")
   }
 
   "A streams backbone" should "use multiple threads for multiple partitions" in {
@@ -89,7 +101,8 @@ class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with Be
       createCustomTopic(INPUT_TOPIC, Map.empty, 3, 1)
       createCustomTopic(OUTPUT_TOPIC)
       log.info("Creating streams")
-      val (_, streams) = makeStreams(KafkaStreamsBackboneCoordinator(backbone), 3)
+      val (builder, _) = configureStreams(KafkaStreamsBackboneCoordinator(backbone))
+      val streams = makeStreams(builder, 3)
       val kafkaProducer = aKafkaProducer[String]
       log.info("Starting kstreams")
       streams.start()
@@ -113,15 +126,18 @@ class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with Be
     }
   }
 
-  def makeStreams(coordinator: KafkaStreamsBackboneCoordinator[TestDatum], nthreads: Int): (KStreamBuilder, KafkaStreams) = {
+  def configureStreams(coordinator: KafkaStreamsBackboneCoordinator[TestDatum]): (KStreamBuilder, KStream[String, Xor[TransformationPipelineFailure, TestDatum]]) = {
     val tdSerde: Serde[TestDatum] = Serdes.serdeFrom(new TestDatumPhraseSerializer(), new TestDatumNameDeserializer())
     val builder = new KStreamBuilder()
     val kstream = builder.stream(stringSerde, tdSerde, INPUT_TOPIC)
-    kstream.transformValues[Xor[TransformationPipelineFailure, TestDatum]](coordinator)
-      .flatMapValues(new KafkaStreamValidDatumValueMapper[TestDatum])
+    val xformStream = kstream.transformValues[Xor[TransformationPipelineFailure, TestDatum]](coordinator)
+    xformStream.flatMapValues(new KafkaStreamValidDatumValueMapper[TestDatum])
       .to(stringSerde, tdSerde, OUTPUT_TOPIC)
-    (builder, new KafkaStreams(builder, new StreamsConfig(backboneStreamProps(nthreads))))
+    (builder, xformStream)
   }
+
+  def makeStreams(builder: KStreamBuilder, nthreads: Int) =
+    new KafkaStreams(builder, new StreamsConfig(backboneStreamProps(nthreads)))
 
   def backboneStreamProps(nthreads: Int = 1) = {
     val props = new Properties()
