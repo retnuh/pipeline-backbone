@@ -92,7 +92,7 @@ class KafkaStreamsBackboneCoordinatorSpec extends FlatSpec with Matchers with Be
       val msgs = consumer.consumeLazily(OUTPUT_TOPIC).take(1).map(_._2).toSet
       msgs should contain("Hello, Soundwave, this was calculated on partition 0")
     }
-    failed.toSeq shouldBe Seq("Megatron")
+    failed shouldBe mutable.Set("Megatron")
   }
 
   "A streams backbone" should "use multiple threads for multiple partitions" in {
