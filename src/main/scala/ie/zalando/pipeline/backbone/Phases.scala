@@ -43,9 +43,10 @@ case object Phases {
 
   /**
    * This should be used when we want to indicate that it took too long for the pipeline to process a particular datum.
+   * @param datum The datum that the pipeline timed out on.
    * @param duration The amount of time that the datum failed to process within.
    */
-  case class TransformationPipelineTimeout(duration: Duration) extends TransformationPipelineFailure
+  case class TransformationPipelineTimeout[DA](datum: DA, duration: Duration) extends TransformationPipelineFailure
 
   /**
    * A Phase representing the loading of top-level, thread safe data.
