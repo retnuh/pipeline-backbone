@@ -72,7 +72,7 @@ private case class KafkaStreamsBackboneValueTransformer[DA](backbone: Backbone[D
 
   override def transform(value: DA): Xor[TransformationPipelineFailure, DA] = {
     xformStateMonadOption.map((sm: backbone.DatumTransformationState) => {
-      Try({ Await.result(Future { backbone.transformDatum(sm, value) }, duration) }).recover {
+      Try(Await.result(Future(backbone.transformDatum(sm, value)), duration)).recover {
         case _: TimeoutException =>
           log.warn(s"Timeout occured for datum: $value")
           Xor.Left(TransformationPipelineTimeout(duration))
