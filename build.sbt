@@ -1,7 +1,7 @@
 name := """pipeline-backbone"""
 organization := "ie.zalando.dougal"
 name := "pipeline-backbone"
-description := "An abstraction for data-extration pipelines"
+description := "An abstraction for data-extraction pipelines"
 version := "git describe --tags --dirty --always".!!.stripPrefix("v").trim
 
 scalaVersion := "2.11.8"
