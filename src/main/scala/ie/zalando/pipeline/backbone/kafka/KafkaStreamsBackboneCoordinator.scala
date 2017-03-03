@@ -1,6 +1,10 @@
 package ie.zalando.pipeline.backbone.kafka
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeoutException
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.{ Await, Future }
+import scala.util.Try
 
 import org.apache.kafka.streams.kstream.{ ValueTransformer, ValueTransformerSupplier }
 import org.apache.kafka.streams.processor.ProcessorContext
@@ -22,17 +26,16 @@ import ie.zalando.pipeline.backbone.Phases._
  * KafkaStreamsBackboneValueTransformer, as appropriate.
  *
  * @param backbone The backbone to be used
- * @param latch An Option[Latch] that can be used to signify that initialization has completed.  Used by tests.
  * @tparam DA The type of the data that will be transformed
  */
-case class KafkaStreamsBackboneCoordinator[DA](backbone: Backbone[DA], latch: Option[CountDownLatch] = None) extends ValueTransformerSupplier[DA, Xor[TransformationPipelineFailure, DA]] {
+case class KafkaStreamsBackboneCoordinator[DA](backbone: Backbone[DA], duration: Duration = Duration.Inf)
+    extends ValueTransformerSupplier[DA, Xor[TransformationPipelineFailure, DA]] {
   import KafkaStreamsBackboneCoordinator._
 
   val localInitPhases = backbone.initializeTopLevelContexts
   override def get(): ValueTransformer[DA, Xor[TransformationPipelineFailure, DA]] = {
     log.info("get() called")
-    latch.map((l: CountDownLatch) => l.countDown())
-    KafkaStreamsBackboneValueTransformer(backbone, localInitPhases)
+    KafkaStreamsBackboneValueTransformer(backbone, localInitPhases, duration)
   }
 }
 
@@ -40,7 +43,10 @@ private object KafkaStreamsBackboneCoordinator {
   val log = LoggerFactory.getLogger(classOf[KafkaStreamsBackboneCoordinator[_]])
 }
 
-private case class KafkaStreamsBackboneValueTransformer[DA](backbone: Backbone[DA], localInitPhases: Seq[LocalInitializationPhase[DA]]) extends ValueTransformer[DA, Xor[TransformationPipelineFailure, DA]] {
+private case class KafkaStreamsBackboneValueTransformer[DA](backbone: Backbone[DA], localInitPhases: Seq[LocalInitializationPhase[DA]], duration: Duration)
+    extends ValueTransformer[DA, Xor[TransformationPipelineFailure, DA]] {
+  import scala.concurrent.ExecutionContext.Implicits._
+
   import KafkaStreamsBackboneValueTransformer._
 
   private var xformStateMonadOption: Option[backbone.DatumTransformationState] = None
@@ -65,7 +71,13 @@ private case class KafkaStreamsBackboneValueTransformer[DA](backbone: Backbone[D
   }
 
   override def transform(value: DA): Xor[TransformationPipelineFailure, DA] = {
-    xformStateMonadOption.map((sm: backbone.DatumTransformationState) => backbone.transformDatum(sm, value)).get
+    xformStateMonadOption.map((sm: backbone.DatumTransformationState) => {
+      Try({ Await.result(Future { backbone.transformDatum(sm, value) }, duration) }).recover {
+        case _: TimeoutException =>
+          log.warn(s"Timeout occured for datum: $value")
+          Xor.Left(TransformationPipelineTimeout(duration))
+      }.get
+    }).get
   }
 }
 

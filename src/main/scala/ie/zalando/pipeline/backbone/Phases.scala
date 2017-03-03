@@ -1,5 +1,7 @@
 package ie.zalando.pipeline.backbone
 
+import scala.concurrent.duration.Duration
+
 import cats.data.Xor
 
 /**
@@ -38,6 +40,12 @@ case object Phases {
    * @param reason A human understandable reason why this data wasn't processed further.
    */
   case class TransformationPipelineStopped(reason: String) extends TransformationPipelineFailure
+
+  /**
+   * This should be used when we want to indicate that it took too long for the pipeline to process a particular datum.
+   * @param duration The amount of time that the datum failed to process within.
+   */
+  case class TransformationPipelineTimeout(duration: Duration) extends TransformationPipelineFailure
 
   /**
    * A Phase representing the loading of top-level, thread safe data.
